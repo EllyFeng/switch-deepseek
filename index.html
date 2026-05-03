@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Provider 切换器</title>
+<style>
+  :root {
+    --bg:         #0f1117;
+    --surface:    #1a1d27;
+    --surface2:   #22263a;
+    --border:     #2e3250;
+    --claude:     #da7756;
+    --claude-dim: #3d2318;
+    --deep:       #4f8ef7;
+    --deep-dim:   #0f2044;
+    --green:      #3ecf8e;
+    --green-dim:  #0c2e1e;
+    --yellow:     #f5c542;
+    --yellow-dim: #2e2500;
+    --red:        #f76b6b;
+    --red-dim:    #2e0f0f;
+    --text:       #e4e6f0;
+    --muted:      #6b7099;
+    --mono:       'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 48px;
+  }
+
+  /* ── Header ── */
+  .header {
+    width: 100%;
+    max-width: 760px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .header-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--deep) 0%, #7b5ea7 100%);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .header-text h1 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: #fff;
+  }
+  .header-text p {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+
+  /* ── Card ── */
+  .card {
+    width: 100%;
+    max-width: 760px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* ── Status card ── */
+  .status-hero {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .status-dot {
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background .3s, box-shadow .3s;
+  }
+  .status-dot.claude  { background: var(--claude); box-shadow: 0 0 10px var(--claude); }
+  .status-dot.deep    { background: var(--deep);   box-shadow: 0 0 10px var(--deep); }
+  .status-dot.unknown { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    transition: background .3s, color .3s, border-color .3s;
+  }
+  .status-badge.claude  { background: var(--claude-dim); color: var(--claude); border: 1px solid var(--claude); }
+  .status-badge.deep    { background: var(--deep-dim);   color: var(--deep);   border: 1px solid var(--deep); }
+  .status-badge.unknown { background: var(--yellow-dim); color: var(--yellow); border: 1px solid var(--yellow); }
+
+  .refresh-btn {
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: border-color .15s, color .15s;
+    white-space: nowrap;
+  }
+  .refresh-btn:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+  .refresh-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .refresh-icon { display: inline-block; transition: transform .4s; }
+  .refresh-btn.spinning .refresh-icon { animation: spin .6s linear infinite; }
+
+  /* ── Fields grid ── */
+  .fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  @media (max-width: 540px) { .fields { grid-template-columns: 1fr; } }
+
+  .field-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .field-key {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-bottom: 5px;
+    letter-spacing: 0.3px;
+  }
+  .field-val {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    word-break: break-all;
+  }
+  .field-val.set   { color: var(--green); }
+  .field-val.unset { color: var(--muted); font-style: italic; }
+
+  .backup-row {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .backup-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    transition: background .3s, color .3s;
+  }
+  .backup-badge.exists { background: var(--green-dim); color: var(--green); }
+  .backup-badge.absent { background: var(--yellow-dim); color: var(--yellow); }
+
+  /* ── Action card ── */
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 480px) { .actions { grid-template-columns: 1fr; } }
+
+  .action-btn {
+    border: none;
+    border-radius: 12px;
+    padding: 18px 20px;
+    cursor: pointer;
+    text-align: left;
+    transition: opacity .15s, transform .1s;
+    position: relative;
+    overflow: hidden;
+  }
+  .action-btn::before {
+    content: '';
+    position: absolute; inset: 0;
+    opacity: 0;
+    background: rgba(255,255,255,.06);
+    transition: opacity .15s;
+  }
+  .action-btn:hover:not(.btn-disabled)::before { opacity: 1; }
+  .action-btn:active:not(.btn-disabled) { transform: scale(.98); }
+
+  .action-btn .btn-icon {
+    font-size: 24px;
+    margin-bottom: 10px;
+    display: block;
+    transition: transform .3s;
+  }
+  .action-btn.loading .btn-icon { animation: spin .8s linear infinite; }
+
+  .action-btn .btn-title {
+    font-size: 15px; font-weight: 700;
+    display: block; margin-bottom: 4px;
+  }
+  .action-btn .btn-desc {
+    font-size: 12px; opacity: .7;
+    display: block; line-height: 1.5;
+  }
+
+  .btn-deep {
+    background: linear-gradient(135deg, #0f2044 0%, #162d5a 100%);
+    border: 1px solid var(--deep);
+    color: var(--deep);
+  }
+  .btn-claude {
+    background: linear-gradient(135deg, #2e1810 0%, #3d2318 100%);
+    border: 1px solid var(--claude);
+    color: var(--claude);
+  }
+  .btn-disabled {
+    opacity: .32;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* ── Log card ── */
+  .log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .clear-btn {
+    background: none; border: none;
+    color: var(--muted); font-size: 11px;
+    cursor: pointer; letter-spacing: 0.3px;
+    transition: color .15s;
+  }
+  .clear-btn:hover { color: var(--text); }
+
+  .log-box {
+    background: #080a10;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.8;
+    height: 200px;
+    overflow-y: auto;
+    color: #a0a8c8;
+  }
+  .log-line { display: flex; gap: 10px; }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-level { flex-shrink: 0; min-width: 40px; }
+  .log-info  .log-level { color: var(--green); }
+  .log-warn  .log-level { color: var(--yellow); }
+  .log-err   .log-level { color: var(--red); }
+  .log-sep {
+    border-top: 1px solid var(--border);
+    margin: 6px 0;
+    opacity: .5;
+  }
+  .log-empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    width: 100%;
+    max-width: 760px;
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0 16px;
+  }
+
+  /* ── Animations ── */
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* ── Scrollbar ── */
+  .log-box::-webkit-scrollbar { width: 4px; }
+  .log-box::-webkit-scrollbar-track { background: transparent; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-icon">⇄</div>
+  <div class="header-text">
+    <h1>Claude Code Provider 切换器</h1>
+    <p>~/.claude/settings.json</p>
+  </div>
+</div>
+
+<!-- Status card -->
+<div class="card">
+  <div class="card-label">当前状态</div>
+  <div class="status-hero">
+    <div id="status-badge" class="status-badge unknown">
+      <span id="status-dot" class="status-dot unknown"></span>
+      <span id="status-label">正在加载...</span>
+    </div>
+    <button id="refresh-btn" class="refresh-btn">
+      <span class="refresh-icon">↺</span> 刷新
+    </button>
+  </div>
+  <div id="fields-grid" class="fields">
+    <!-- populated by JS -->
+  </div>
+  <div class="backup-row">
+    备份文件：
+    <span id="backup-badge" class="backup-badge absent">— 检测中</span>
+    <span id="backup-name" style="font-family: var(--mono); font-size: 11px;"></span>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- Action card -->
+<div class="card">
+  <div class="card-label">操作</div>
+  <div class="actions">
+    <button id="switch-btn" class="action-btn btn-deep">
+      <span class="btn-icon">🔵</span>
+      <span class="btn-title">切换到 DeepSeek</span>
+      <span class="btn-desc">将 API 路由到 DeepSeek，<br>使用 .env 中的密钥</span>
+    </button>
+    <button id="restore-btn" class="action-btn btn-claude btn-disabled">
+      <span class="btn-icon">🔶</span>
+      <span class="btn-title">还原到 Claude</span>
+      <span class="btn-desc">从备份还原 Anthropic 原始配置</span>
+    </button>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- Log card -->
+<div class="card">
+  <div class="log-header">
+    <div class="card-label" style="margin:0">操作日志</div>
+    <button id="clear-btn" class="clear-btn">清空</button>
+  </div>
+  <div id="log-box" class="log-box">
+    <div class="log-empty">暂无日志</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── DOM refs ────────────────────────────────────────────────────────────────
+  const statusBadge  = document.getElementById('status-badge');
+  const statusDot    = document.getElementById('status-dot');
+  const statusLabel  = document.getElementById('status-label');
+  const fieldsGrid   = document.getElementById('fields-grid');
+  const backupBadge  = document.getElementById('backup-badge');
+  const backupName   = document.getElementById('backup-name');
+  const refreshBtn   = document.getElementById('refresh-btn');
+  const switchBtn    = document.getElementById('switch-btn');
+  const restoreBtn   = document.getElementById('restore-btn');
+  const logBox       = document.getElementById('log-box');
+  const clearBtn     = document.getElementById('clear-btn');
+
+  // ── State ───────────────────────────────────────────────────────────────────
+  let isLoading      = false;
+  let backupExists   = false;
+  let settingsExists = true;   // assume true; updated by updateStatusCard
+  let logHasEntries  = false;
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function timeNow() {
+    return new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+  }
+
+  function appendLog(level, text) {
+    // Remove "暂无日志" placeholder on first entry
+    if (!logHasEntries) {
+      logBox.innerHTML = '';
+      logHasEntries = true;
+    }
+    const line = document.createElement('div');
+    const cls  = level === 'INFO' ? 'log-info' : level === 'WARN' ? 'log-warn' : 'log-err';
+    line.className = 'log-line ' + cls;
+    line.innerHTML =
+      '<span class="log-time">' + timeNow() + '</span>' +
+      '<span class="log-level">' + escapeHtml(level) + '</span>' +
+      '<span>' + escapeHtml(text) + '</span>';
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  function appendLogSep() {
+    if (!logHasEntries) return;
+    const sep = document.createElement('div');
+    sep.className = 'log-sep';
+    logBox.appendChild(sep);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  // ── Status card update ───────────────────────────────────────────────────────
+  const STATE_LABELS = {
+    'claude-like':  'Claude (Anthropic)',
+    'deepseek-like': 'DeepSeek',
+    'unknown':       '未知状态'
+  };
+  const STATE_CLS = {
+    'claude-like':   'claude',
+    'deepseek-like': 'deep',
+    'unknown':       'unknown'
+  };
+
+  function updateStatusCard(data) {
+    const state = data.state || 'unknown';
+    const cls   = STATE_CLS[state]   || 'unknown';
+    const label = STATE_LABELS[state] || '未知';
+
+    statusDot.className   = 'status-dot ' + cls;
+    statusBadge.className = 'status-badge ' + cls;
+    statusLabel.textContent = label;
+
+    // Fields
+    const f = data.fields || {};
+    function fieldVal(val, isKey) {
+      if (!val) return '<div class="field-val unset">（未设置）</div>';
+      if (isKey) return '<div class="field-val ' + (val === 'set' ? 'set' : 'unset') + '">' +
+        (val === 'set' ? '● 已配置' : '● 未配置') + '</div>';
+      return '<div class="field-val">' + escapeHtml(val) + '</div>';
+    }
+    fieldsGrid.innerHTML =
+      '<div class="field-item"><div class="field-key">ANTHROPIC_BASE_URL</div>' + fieldVal(f.base_url) + '</div>' +
+      '<div class="field-item"><div class="field-key">ANTHROPIC_MODEL</div>' + fieldVal(f.model) + '</div>' +
+      '<div class="field-item"><div class="field-key">ANTHROPIC_API_KEY</div>' + fieldVal(f.api_key, true) + '</div>' +
+      '<div class="field-item"><div class="field-key">ANTHROPIC_AUTH_TOKEN</div>' + fieldVal(f.auth_token, true) + '</div>';
+
+    // Backup & settings state
+    settingsExists = !!data.settings_exists;
+    backupExists   = !!data.backup_exists;
+    if (backupExists) {
+      backupBadge.textContent = '✓ 已存在';
+      backupBadge.className   = 'backup-badge exists';
+      backupName.textContent  = 'settings.json.deepseek-switch.backup';
+    } else {
+      backupBadge.textContent = '✗ 不存在';
+      backupBadge.className   = 'backup-badge absent';
+      backupName.textContent  = '';
+    }
+
+    // Sync button states (only when not in the middle of an operation)
+    if (!isLoading) {
+      switchBtn.classList.toggle('btn-disabled', !settingsExists);
+      restoreBtn.classList.toggle('btn-disabled', !backupExists || !settingsExists);
+    }
+  }
+
+  // ── Loading state ────────────────────────────────────────────────────────────
+  function setLoading(loading) {
+    isLoading = loading;
+    refreshBtn.disabled = loading;
+    refreshBtn.classList.toggle('spinning', loading);
+
+    if (loading) {
+      switchBtn.classList.add('btn-disabled');
+      restoreBtn.classList.add('btn-disabled');
+    } else {
+      switchBtn.classList.toggle('btn-disabled', !settingsExists);
+      restoreBtn.classList.toggle('btn-disabled', !backupExists || !settingsExists);
+    }
+  }
+
+  function setButtonLoading(btn, loading) {
+    const icon = btn.querySelector('.btn-icon');
+    if (loading) {
+      btn.dataset.origIcon = icon.textContent;
+      icon.textContent = '⏳';
+      btn.classList.add('loading');
+    } else {
+      icon.textContent = btn.dataset.origIcon || icon.textContent;
+      btn.classList.remove('loading');
+    }
+  }
+
+  // ── API calls ────────────────────────────────────────────────────────────────
+  async function fetchStatus(silent) {
+    try {
+      const res  = await fetch('/api/status');
+      const data = await res.json();
+      if (data.error) {
+        if (!silent) appendLog('ERROR', '获取状态失败：' + data.error);
+        return;
+      }
+      updateStatusCard(data);
+      if (!silent) appendLog('INFO', '状态已刷新。');
+    } catch (e) {
+      if (!silent) appendLog('ERROR', '请求失败：' + e.message);
+    }
+  }
+
+  async function doAction(endpoint, btn) {
+    if (isLoading) return;
+    setLoading(true);
+    setButtonLoading(btn, true);
+
+    try {
+      const res  = await fetch(endpoint, { method: 'POST' });
+      const data = await res.json();
+
+      if (Array.isArray(data.messages)) {
+        data.messages.forEach(function (m) {
+          appendLog(m.level || 'INFO', m.text || '');
+        });
+      }
+      if (!data.ok) {
+        appendLog('ERROR', data.error || '操作失败，未知错误。');
+      }
+      appendLogSep();
+      await fetchStatus(true);
+    } catch (e) {
+      appendLog('ERROR', '请求失败：' + e.message);
+      appendLogSep();
+    } finally {
+      setButtonLoading(btn, false);
+      setLoading(false);
+    }
+  }
+
+  // ── Event listeners ──────────────────────────────────────────────────────────
+  refreshBtn.addEventListener('click', function () {
+    fetchStatus(false);
+  });
+
+  switchBtn.addEventListener('click', function () {
+    if (switchBtn.classList.contains('btn-disabled')) return;
+    doAction('/api/switch', switchBtn);
+  });
+
+  restoreBtn.addEventListener('click', function () {
+    if (restoreBtn.classList.contains('btn-disabled')) return;
+    doAction('/api/restore', restoreBtn);
+  });
+
+  clearBtn.addEventListener('click', function () {
+    logBox.innerHTML = '<div class="log-empty">暂无日志</div>';
+    logHasEntries = false;
+  });
+
+  // ── Initial load ─────────────────────────────────────────────────────────────
+  fetchStatus(true);
+})();
+</script>
+
+</body>
+</html>

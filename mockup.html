@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Provider 切换器</title>
+<style>
+  :root {
+    --bg:         #0f1117;
+    --surface:    #1a1d27;
+    --surface2:   #22263a;
+    --border:     #2e3250;
+    --claude:     #da7756;
+    --claude-dim: #3d2318;
+    --deep:       #4f8ef7;
+    --deep-dim:   #0f2044;
+    --green:      #3ecf8e;
+    --green-dim:  #0c2e1e;
+    --yellow:     #f5c542;
+    --yellow-dim: #2e2500;
+    --text:       #e4e6f0;
+    --muted:      #6b7099;
+    --mono:       'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 48px;
+  }
+
+  /* ── 顶部 ── */
+  .header {
+    width: 100%;
+    max-width: 760px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .header-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--deep) 0%, #7b5ea7 100%);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .header-text h1 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: #fff;
+  }
+
+  .header-text p {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+
+  /* ── 卡片通用 ── */
+  .card {
+    width: 100%;
+    max-width: 760px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* ── 状态卡片 ── */
+  .status-hero {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .status-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .status-dot.claude  { background: var(--claude);  box-shadow: 0 0 10px var(--claude); }
+  .status-dot.deep    { background: var(--deep);    box-shadow: 0 0 10px var(--deep); }
+  .status-dot.unknown { background: var(--yellow);  box-shadow: 0 0 10px var(--yellow); }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+  }
+
+  .status-badge.claude  { background: var(--claude-dim); color: var(--claude); border: 1px solid var(--claude); }
+  .status-badge.deep    { background: var(--deep-dim);   color: var(--deep);   border: 1px solid var(--deep); }
+
+  .refresh-btn {
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: all .15s;
+  }
+
+  .refresh-btn:hover { border-color: var(--text); color: var(--text); }
+
+  /* 字段表格 */
+  .fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  @media (max-width: 540px) { .fields { grid-template-columns: 1fr; } }
+
+  .field-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .field-key {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-bottom: 5px;
+    letter-spacing: 0.3px;
+  }
+
+  .field-val {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  .field-val.set   { color: var(--green); }
+  .field-val.unset { color: var(--muted); font-style: italic; }
+
+  .backup-row {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .backup-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .backup-badge.exists { background: var(--green-dim); color: var(--green); }
+  .backup-badge.absent { background: var(--yellow-dim); color: var(--yellow); }
+
+  /* ── 操作卡片 ── */
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 480px) { .actions { grid-template-columns: 1fr; } }
+
+  .action-btn {
+    border: none;
+    border-radius: 12px;
+    padding: 18px 20px;
+    cursor: pointer;
+    text-align: left;
+    transition: all .15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .action-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity .15s;
+    background: rgba(255,255,255,.06);
+  }
+
+  .action-btn:hover::before { opacity: 1; }
+
+  .action-btn:active { transform: scale(.98); }
+
+  .action-btn .btn-icon { font-size: 24px; margin-bottom: 10px; display: block; }
+
+  .action-btn .btn-title {
+    font-size: 15px;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .action-btn .btn-desc {
+    font-size: 12px;
+    opacity: .7;
+    display: block;
+    line-height: 1.5;
+  }
+
+  .btn-deep {
+    background: linear-gradient(135deg, #0f2044 0%, #162d5a 100%);
+    border: 1px solid var(--deep);
+    color: var(--deep);
+  }
+
+  .btn-claude {
+    background: linear-gradient(135deg, #2e1810 0%, #3d2318 100%);
+    border: 1px solid var(--claude);
+    color: var(--claude);
+  }
+
+  .btn-disabled {
+    opacity: .35;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* ── 日志卡片 ── */
+  .log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .clear-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+  }
+
+  .clear-btn:hover { color: var(--text); }
+
+  .log-box {
+    background: #080a10;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.8;
+    height: 180px;
+    overflow-y: auto;
+    color: #a0a8c8;
+  }
+
+  .log-line { display: flex; gap: 10px; }
+
+  .log-time { color: var(--muted); flex-shrink: 0; }
+
+  .log-info  { color: var(--green); }
+  .log-warn  { color: var(--yellow); }
+  .log-err   { color: #f76b6b; }
+
+  /* ── 分隔线 ── */
+  .divider {
+    width: 100%;
+    max-width: 760px;
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0 16px;
+  }
+
+  /* ── 滚动条 ── */
+  .log-box::-webkit-scrollbar { width: 4px; }
+  .log-box::-webkit-scrollbar-track { background: transparent; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- 顶部标题 -->
+<div class="header">
+  <div class="header-icon">⇄</div>
+  <div class="header-text">
+    <h1>Claude Code Provider 切换器</h1>
+    <p>~/.claude/settings.json</p>
+  </div>
+</div>
+
+<!-- 状态卡片 -->
+<div class="card">
+  <div class="card-label">当前状态</div>
+
+  <div class="status-hero">
+    <div class="status-badge claude">
+      <span class="status-dot claude"></span>
+      Claude (Anthropic)
+    </div>
+    <button class="refresh-btn">↺ 刷新</button>
+  </div>
+
+  <div class="fields">
+    <div class="field-item">
+      <div class="field-key">ANTHROPIC_BASE_URL</div>
+      <div class="field-val unset">（未设置）</div>
+    </div>
+    <div class="field-item">
+      <div class="field-key">ANTHROPIC_MODEL</div>
+      <div class="field-val">claude-sonnet-4-5</div>
+    </div>
+    <div class="field-item">
+      <div class="field-key">ANTHROPIC_API_KEY</div>
+      <div class="field-val set">● 已配置</div>
+    </div>
+    <div class="field-item">
+      <div class="field-key">ANTHROPIC_AUTH_TOKEN</div>
+      <div class="field-val unset">（未设置）</div>
+    </div>
+  </div>
+
+  <div class="backup-row">
+    备份文件：
+    <span class="backup-badge exists">✓ 已存在</span>
+    <span style="font-family: var(--mono)">settings.json.deepseek-switch.backup</span>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 操作卡片 -->
+<div class="card">
+  <div class="card-label">操作</div>
+  <div class="actions">
+    <button class="action-btn btn-deep">
+      <span class="btn-icon">🔵</span>
+      <span class="btn-title">切换到 DeepSeek</span>
+      <span class="btn-desc">将 API 路由到 DeepSeek，<br>使用 .env 中的密钥</span>
+    </button>
+    <button class="action-btn btn-claude">
+      <span class="btn-icon">🔶</span>
+      <span class="btn-title">还原到 Claude</span>
+      <span class="btn-desc">从备份还原 Anthropic 原始配置</span>
+    </button>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 日志卡片 -->
+<div class="card">
+  <div class="log-header">
+    <div class="card-label" style="margin:0">操作日志</div>
+    <button class="clear-btn">清空</button>
+  </div>
+  <div class="log-box">
+    <div class="log-line">
+      <span class="log-time">14:32:01</span>
+      <span class="log-info">INFO</span>
+      <span>从 .env 读取 DeepSeek API 密钥。</span>
+    </div>
+    <div class="log-line">
+      <span class="log-time">14:32:01</span>
+      <span class="log-info">INFO</span>
+      <span>备份已创建：settings.json.deepseek-switch.backup</span>
+    </div>
+    <div class="log-line">
+      <span class="log-time">14:32:01</span>
+      <span class="log-info">INFO</span>
+      <span>切换完成。BASE_URL → https://api.deepseek.com</span>
+    </div>
+    <div class="log-line">
+      <span class="log-time">14:35:18</span>
+      <span class="log-info">INFO</span>
+      <span>还原完成。已从备份恢复原始配置。</span>
+    </div>
+    <div class="log-line">
+      <span class="log-time">14:35:18</span>
+      <span class="log-warn">WARN</span>
+      <span>备份文件已保留，下次 switch 将跳过创建备份。</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
