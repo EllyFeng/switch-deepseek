@@ -78,9 +78,9 @@ def get_status():
         }
 
     cfg = load_json(SETTINGS_FILE)
-    env = cfg.get("env") or {}
+    env = cfg.get("env", {})
     if not isinstance(env, dict):
-        env = {}
+        raise SwitchError(f"env 字段存在但不是 JSON 对象：{SETTINGS_FILE}")
 
     def masked(val):
         return "set" if val else "not set"
@@ -171,9 +171,9 @@ def do_restore():
     if not os.access(BACKUP_FILE, os.R_OK):
         raise SwitchError(f"备份文件不可读：{BACKUP_FILE.name}")
 
-    load_json(BACKUP_FILE)  # 验证 JSON 合法性，失败则抛 SwitchError
+    cfg = load_json(BACKUP_FILE)  # 验证 JSON 合法性，失败则抛 SwitchError
 
-    safe_write(load_json(BACKUP_FILE), SETTINGS_FILE)
+    safe_write(cfg, SETTINGS_FILE)
 
     messages.append({"level": "INFO", "text": "还原完成。"})
     messages.append({"level": "INFO", "text": f"已从备份恢复：{BACKUP_FILE.name}"})

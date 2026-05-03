@@ -53,7 +53,7 @@ def safe_write(data, target: Path):
 
 def load_api_key():
     # 优先读环境变量
-    key = os.environ.get("DEEPSEEK_API_KEY", "")
+    key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if key:
         info("从环境变量 DEEPSEEK_API_KEY 读取密钥。")
         return key
@@ -64,7 +64,7 @@ def load_api_key():
             for line in f:
                 m = re.match(r'^DEEPSEEK_API_KEY=(.+)$', line.strip())
                 if m:
-                    key = m.group(1)
+                    key = m.group(1).strip()
                     info(f"从 {env_file} 读取密钥。")
                     return key
         die(f"在 {env_file} 中未找到 DEEPSEEK_API_KEY")
@@ -117,6 +117,8 @@ def cmd_status():
     # 状态判定
     if base_url == DEEPSEEK_BASE_URL and model == DEEPSEEK_MODEL:
         state = "deepseek-like"
+    elif not base_url and not model:
+        state = "claude-like"
     elif "claude" in model.lower() and ("anthropic" in base_url.lower() or not base_url):
         state = "claude-like"
     else:
@@ -175,14 +177,9 @@ def cmd_restore():
     if not os.access(BACKUP_FILE, os.R_OK):
         die(f"备份文件不可读：{BACKUP_FILE}")
 
-    load_json(BACKUP_FILE)  # 验证合法性
+    cfg = load_json(BACKUP_FILE)  # 验证合法性，兼写入用
 
-    try:
-        safe_write(load_json(BACKUP_FILE), SETTINGS_FILE)
-    except SystemExit:
-        raise
-    except Exception as e:
-        die(f"还原失败：{e}")
+    safe_write(cfg, SETTINGS_FILE)
 
     info("还原完成。")
     info(f"Config  : {SETTINGS_FILE}")

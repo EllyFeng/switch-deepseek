@@ -452,6 +452,13 @@
     'unknown':       'unknown'
   };
 
+  function fieldVal(val, isKey) {
+    if (!val) return '<div class="field-val unset">（未设置）</div>';
+    if (isKey) return '<div class="field-val ' + (val === 'set' ? 'set' : 'unset') + '">' +
+      (val === 'set' ? '● 已配置' : '● 未配置') + '</div>';
+    return '<div class="field-val">' + escapeHtml(val) + '</div>';
+  }
+
   function updateStatusCard(data) {
     const state = data.state || 'unknown';
     const cls   = STATE_CLS[state]   || 'unknown';
@@ -463,12 +470,6 @@
 
     // Fields
     const f = data.fields || {};
-    function fieldVal(val, isKey) {
-      if (!val) return '<div class="field-val unset">（未设置）</div>';
-      if (isKey) return '<div class="field-val ' + (val === 'set' ? 'set' : 'unset') + '">' +
-        (val === 'set' ? '● 已配置' : '● 未配置') + '</div>';
-      return '<div class="field-val">' + escapeHtml(val) + '</div>';
-    }
     fieldsGrid.innerHTML =
       '<div class="field-item"><div class="field-key">ANTHROPIC_BASE_URL</div>' + fieldVal(f.base_url) + '</div>' +
       '<div class="field-item"><div class="field-key">ANTHROPIC_MODEL</div>' + fieldVal(f.model) + '</div>' +

@@ -7,6 +7,9 @@ settings.json.tmp.*
 # 以防脚本在项目目录下误产生备份
 *.backup
 
+# Python
+__pycache__/
+
 # Windows 系统文件
 Thumbs.db
 desktop.ini

@@ -1,75 +1,75 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code（claude.ai/code）在此仓库中工作时提供指引。
 
-## What this project does
+## 项目功能
 
-A minimal tool to switch Claude Code's provider between Anthropic and DeepSeek by patching `~/.claude/settings.json`. Two implementations exist with identical behavior:
+一个轻量工具，通过修补 `~/.claude/settings.json` 来切换 Claude Code 的服务商（Anthropic ↔ DeepSeek）。提供两种行为完全相同的实现：
 
-- `switch-deepseek.py` — Python, cross-platform (primary on Windows)
-- `switch-deepseek.sh` — Bash, requires `jq`
+- `switch-deepseek.py` — Python 版，跨平台（Windows 首选）
+- `switch-deepseek.sh` — Bash 版，依赖 `jq`
 
-A web UI is in progress: `server.py` (Flask backend) + `index.html` (frontend), with `mockup.html` as the visual reference.
+Web UI 正在开发中：`server.py`（Flask 后端）+ `index.html`（前端），`mockup.html` 为视觉参考稿。
 
-## Running the scripts
+## 运行脚本
 
 ```bash
-# Python version (Windows-safe)
+# Python 版（Windows 安全）
 python switch-deepseek.py status
 python switch-deepseek.py switch
 python switch-deepseek.py restore
 
-# Bash version (macOS/Linux or WSL)
+# Bash 版（macOS/Linux 或 WSL）
 bash switch-deepseek.sh status
 bash switch-deepseek.sh switch
 bash switch-deepseek.sh restore
 
-# Web UI (once implemented)
+# Web UI（实现后）
 pip install flask
 python server.py
-# then open http://localhost:8080
+# 然后访问 http://localhost:8080
 ```
 
-## Architecture
+## 架构
 
-### Core logic (`switch-deepseek.py`)
+### 核心逻辑（`switch-deepseek.py`）
 
-Three self-contained functions: `cmd_status`, `cmd_switch`, `cmd_restore`. They share two constants and two path variables:
+三个独立函数：`cmd_status`、`cmd_switch`、`cmd_restore`，共享两个常量和两个路径变量：
 
 - `DEEPSEEK_BASE_URL = "https://api.deepseek.com"`
 - `DEEPSEEK_MODEL = "deepseek-v4-pro"`
 - `SETTINGS_FILE = ~/.claude/settings.json`
 - `BACKUP_FILE = ~/.claude/settings.json.deepseek-switch.backup`
 
-`die()` calls `sys.exit(1)` — safe in CLI context, but must be replaced with a custom exception before calling these functions from a web server.
+`die()` 调用 `sys.exit(1)`——在 CLI 下安全，但在从 Web 服务器调用这些函数之前必须替换为自定义异常。
 
-### What `switch` actually does
+### `switch` 实际做了什么
 
-Reads `settings.json`, patches **only** these three fields, writes back via a temp file + atomic rename:
+读取 `settings.json`，**仅**修补以下三个字段，通过临时文件 + 原子重命名写回：
 - `env.ANTHROPIC_BASE_URL`
 - `env.ANTHROPIC_MODEL`
 - `env.ANTHROPIC_API_KEY`
 
-All other fields (`statusLine`, `hooks`, `permissions`, `env.HTTP_PROXY`, `ANTHROPIC_DEFAULT_*`, top-level `model`, etc.) must be preserved unchanged.
+其他所有字段（`statusLine`、`hooks`、`permissions`、`env.HTTP_PROXY`、`ANTHROPIC_DEFAULT_*`、顶层 `model` 等）必须保持不变。
 
-### API key source (priority order)
+### API Key 来源（优先级顺序）
 
-1. `DEEPSEEK_API_KEY` environment variable
-2. `.env` file in the same directory as the script
-3. Interactive prompt (CLI only)
+1. `DEEPSEEK_API_KEY` 环境变量
+2. 与脚本同目录的 `.env` 文件
+3. 交互式输入（仅限 CLI）
 
-### Backup strategy
+### 备份策略
 
-Single fixed backup file. First `switch` creates it; subsequent `switch` calls skip creation if it already exists (to preserve the original pre-DeepSeek state). `restore` does a full-file overwrite from backup — no smart merge.
+使用单一固定备份文件。首次 `switch` 时创建；后续 `switch` 若备份已存在则跳过创建（以保留切换前的原始状态）。`restore` 从备份完整覆盖文件——不做智能合并。
 
-## Key constraints
+## 关键约束
 
-- Only `settings.json` is ever written. Never touch `~/.claude.json`, plugins, or MCP config.
-- `env` field: if absent, create it as `{}`; if present but not an object, hard-fail.
-- Write safety: always construct full JSON in memory → write to `.tmp.<pid>` → `os.replace()`. Never use string/regex substitution on JSON.
-- Status output must not reveal key/token values — only `"set"` or `"not set"`.
-- `ANTHROPIC_DEFAULT_HAIKU/SONNET/OPUS_MODEL` and top-level `model` are explicitly read-only.
+- 只写 `settings.json`，绝不修改 `~/.claude.json`、插件或 MCP 配置。
+- `env` 字段：若不存在则创建为 `{}`；若存在但不是对象则硬失败。
+- 写入安全：始终在内存中构造完整 JSON → 写入 `.tmp.<pid>` → `os.replace()`，绝不对 JSON 使用字符串/正则替换。
+- 状态输出不得暴露 key/token 值——只显示 `"set"` 或 `"not set"`。
+- `ANTHROPIC_DEFAULT_HAIKU/SONNET/OPUS_MODEL` 和顶层 `model` 为显式只读字段。
 
-## Current `~/.claude/settings.json` state
+## 当前 `~/.claude/settings.json` 状态
 
-The live config on this machine is nearly empty: `{"env": {}}`. Backup/restore will reflect this.
+本机的实时配置几乎为空：`{"env": {}}`，备份/还原将反映此状态。
